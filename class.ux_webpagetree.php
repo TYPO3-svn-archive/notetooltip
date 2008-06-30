@@ -47,10 +47,8 @@ class ux_webPageTree extends webPageTree {
 		
 		
 		
-			// Add title attribute to input icon tag
-			
-		// ADD TOOLTIP JAVASCRIPT BY JULIAN KLEINHANS
-		$thePageIcon = $this->addTagAttributes($icon, $this->titleAttrib.'="'.$this->getTitleAttrib($row).'" '.$this->getTooltipLink($row['uid']));
+			// Add title attribute to input icon tag. Extended with sys_note Tooltip from Julian Kleinhans
+		$thePageIcon = $this->addTagAttributes($icon, $this->getTooltip($row,1));
 
 		
 		
@@ -65,13 +63,13 @@ class ux_webPageTree extends webPageTree {
 			$thePageIcon='<a href="#" onclick="'.htmlspecialchars($aOnClick).'">'.$thePageIcon.'</a>';
 		}
 
-			// Wrap icon in a drag/drop span.
 		
 		
 		
-		// ADD TOOLTIP JAVASCRIPT BY JULIAN KLEINHANS
+			// Wrap icon in a drag/drop span. Extended with sys_note Tooltip from Julian Kleinhans
 		$dragDropIcon = '<script type="text/javascript" src="'.t3lib_extMgm::extRelPath('notetooltip').'res/wz_tooltip.js"></script>';
-		$dragDropIcon .= $this->getTooltip($row['uid']);			
+		$dragDropIcon .= $this->getTooltip($row);			
+
 		
 		
 		
@@ -94,25 +92,60 @@ class ux_webPageTree extends webPageTree {
 		return $dragDropIcon.$lockIcon.$pageIdStr.$stat;
 	}	
 	
-	
-	function getTooltip($uid){	
-		$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery('*','sys_note','pid = '.$uid.' AND deleted = 0','','crdate DESC');
-		//echo $GLOBALS['TYPO3_DB']->SELECTquery('*','sys_note','uid = '.$uid.' AND deleted = 0','','crdate DESC').'<br>';
+	/**
+	 * This function extends the title attribute with sys_notes
+	 * 
+	 * @param	array	$row: Data row for element.
+	 * @param	boolean	$getLink: Return only onmouseover 
+	 */
+	function getTooltip($row, $getLink=0){	
+		
+		$res = $GLOBALS['TYPO3_DB']->exec_SELECTquery('*','sys_note','pid = '.$row['uid'].' AND deleted = 0','','crdate DESC');		
 		if($res AND $GLOBALS['TYPO3_DB']->sql_num_rows($res)>=1){
-			$content = '';
+			
+			$content = '';			
 			while($data = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($res)){
-				$content .= date('d.m.Y',$data['crdate']).'<br/>';
-				$content .= $data['author'].' - '.$data['email'].'<br/>';
-				$content .= $data['subject'].'<br/>';
-				$content .= $data['message'].'<br/>';
-				
+			
+				if($data['personal'] == 0 OR ($data['personal'] == 1 AND $data['cruser'] == $GLOBALS['BE_USER']->user['uid'])){
+					$showLink = 1; 							
+					$content .= date('d.m.Y',$data['crdate']).'<br/>';
+					$content .= $data['author'].' - '.$data['email'].'<br/>';
+					$content .= $this->getNoteCategoryTitle($data['category']).'<br/>';
+					$content .= '<strong>'.$data['subject'].'</strong><br/>';
+					$content .= substr($data['message'],0,300).'...<br/>';
+					$content .= '<hr style="height: 1px; color: grey; background-color: grey; border: none;"/>';					
+				}else{
+					$showLink = 1;
+				}				
 			}
-			 return '<span id="tooltip_'.$uid.'">'.$content.'</span>';
-		}		
+			
+			if($getLink == 1){
+				if($showLink == 1){
+					return 'onmouseover="TagToTip(\'tooltip_'.$row['uid'].'\',WIDTH, 200, BGCOLOR, \'#F7F3EF\', FONTCOLOR, \'#000\', TITLEFONTCOLOR, \'#000\', BORDERCOLOR, \'#ABBBB4\', OPACITY, 85, TITLE, \''.$this->getTitleAttrib($row).'\' )" onmouseout="UnTip()"';
+				}else{
+					return  $this->titleAttrib.'="'.$this->getTitleAttrib($row).'"';
+				}
+			}
+			
+			return '<span id="tooltip_'.$row['uid'].'">'.$content.'</span>';
+		}else{
+			if($getLink == 1) return  $this->titleAttrib.'="'.$this->getTitleAttrib($row).'"';		
+		}
 	}
 	
-	function getTooltipLink($uid){
-		return 'onmouseover="TagToTip(\'tooltip_'.$uid.'\')" onmouseout="UnTip()"';
+	/**
+	 * Return the sys_note category value
+	 * 
+	 * @param	int		$id: Category uid
+	 */
+	function getNoteCategoryTitle($id){
+		$uc = unserialize($GLOBALS['BE_USER']->user['uc']);		
+		$lang = $uc['lang']?$uc['lang']:'default';
+		
+		$basePath = t3lib_extMgm::extPath('sys_note').'locallang_tca.php';
+		$tempLOCAL_LANG = t3lib_div::readLLfile($basePath,$lang);	
+		
+		return $tempLOCAL_LANG[$lang]['sys_note.category.I.'.$id];
 	}
 	
 	
